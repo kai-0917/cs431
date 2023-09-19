@@ -83,7 +83,10 @@ impl ThreadPool {
     where
         F: FnOnce() + Send + 'static,
     {
-        todo!()
+        // todo!()
+        let job = Job(Box::new(f));
+
+        self.job_sender.as_ref().unwrap().send(job).unwrap();
     }
 
     /// Block the current thread until all jobs in the pool have been executed.

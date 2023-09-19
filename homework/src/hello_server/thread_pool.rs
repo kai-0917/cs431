@@ -24,7 +24,9 @@ impl Drop for Worker {
         println!("Shutting down worker {}.", self._id);
 
         if let Some(thread) = self.thread.take() {
-            thread.join().unwrap();
+            if thread.join().is_err() {
+                panic!("Worker {} panicked", self._id);
+            }
         }
     }
 }
@@ -40,12 +42,17 @@ struct ThreadPoolInner {
 impl ThreadPoolInner {
     /// Increment the job count.
     fn start_job(&self) {
-        todo!()
+        // todo!()
+        let mut job_count = self.job_count.lock().unwrap();
+        *job_count += 1;
     }
 
     /// Decrement the job count.
     fn finish_job(&self) {
-        todo!()
+        // todo!()
+        let mut job_count = self.job_count.lock().unwrap();
+        *job_count -= 1;
+        self.empty_condvar.notify_all();
     }
 
     /// Wait until the job count becomes 0.
@@ -53,7 +60,11 @@ impl ThreadPoolInner {
     /// NOTE: We can optimize this function by adding another field to `ThreadPoolInner`, but let's
     /// not care about that in this homework.
     fn wait_empty(&self) {
-        todo!()
+        // todo!()
+        let mut job_count = self.job_count.lock().unwrap();
+        while *job_count > 0 {
+            job_count = self.empty_condvar.wait(job_count).unwrap();
+        }
     }
 }
 
@@ -74,13 +85,17 @@ impl ThreadPool {
         let mut workers = Vec::with_capacity(size);
 
         let (sender, receiver) = unbounded();
+        let pool_inner = Arc::new(ThreadPoolInner::default());
 
         for id in 0..size {
+            // let pool_inner = pool_inner.clone();
             let receiver_cloned = receiver.clone();
-            workers.push(Worker::new(id, receiver_cloned));
+
+
+            workers.push(Worker::new(id, receiver_cloned, pool_inner.clone()));
         }
 
-        ThreadPool { _workers: workers, job_sender: Some(sender), pool_inner: Arc::new(ThreadPoolInner::new()) }
+        ThreadPool { _workers: workers, job_sender: Some(sender), pool_inner: pool_inner}
     }
 
     /// Execute a new job in the thread pool.
@@ -98,7 +113,8 @@ impl ThreadPool {
     ///
     /// NOTE: This method has nothing to do with `JoinHandle::join`.
     pub fn join(&self) {
-        todo!()
+        // todo!()
+        self.pool_inner.wait_empty();
     }
 }
 
@@ -114,8 +130,9 @@ impl Drop for ThreadPool {
 }
 
 impl Worker {
-    fn new(id: usize, receiver: crossbeam_channel::Receiver<Job>) -> Worker {
+    fn new(id: usize, receiver: crossbeam_channel::Receiver<Job>, pool_inner: Arc<ThreadPoolInner>) -> Worker {
         let thread = thread::spawn(move || loop {
+            pool_inner.start_job();
             let message = receiver.recv();
 
             match message {
@@ -125,9 +142,12 @@ impl Worker {
                 },
                 Err(_) => {
                     print!("Worker {id} disconnected; shutting down.");
+                    pool_inner.finish_job();
                     break;
                 }
             }
+
+            pool_inner.finish_job();
         });
 
         Worker {_id: id, thread: Some(thread)}

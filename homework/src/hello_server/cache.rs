@@ -43,10 +43,8 @@ impl<K: Eq + Hash + Clone, V: Clone> Cache<K, V> {
                 return entry.get().lock().unwrap().clone()
             },
             Entry::Vacant(entry) => {
-                let value = f(key.clone());
-                let arc_value = Arc::new(Mutex::new(value));
-                entry.insert(arc_value.clone());
-                value
+                inner.entry(key.clone()).or_insert_with_key(|key|Arc::new(Mutex::new(f(*key))))
+                    .lock().unwrap().clone()
             }
         }
     }

@@ -65,7 +65,17 @@ impl ThreadPool {
     pub fn new(size: usize) -> Self {
         assert!(size > 0);
 
-        todo!()
+        // todo!()
+        let mut workers = Vec::with_capacity(size);
+
+        let (sender, receiver) = unbounded();
+
+        for id in 0..size {
+            let receiver_cloned = receiver.clone();
+            workers.push(Worker::new(id, receiver_cloned));
+        }
+
+        ThreadPool { _workers: workers, job_sender: Some(sender), pool_inner: Arc::new(ThreadPoolInner::new()) }
     }
 
     /// Execute a new job in the thread pool.
@@ -89,5 +99,26 @@ impl Drop for ThreadPool {
     /// then this function should panic too.
     fn drop(&mut self) {
         todo!()
+    }
+}
+
+impl Worker {
+    fn new(id: usize, receiver: crossbeam_channel::Receiver<Job>) -> Worker {
+        let thread = thread::spawn(move || loop {
+            let message = receiver.recv();
+
+            match message {
+                Ok(job) => {
+                    print!("Worker {id} got a job; executing.");
+                    job.0();
+                },
+                Err(_) => {
+                    print!("Worker {id} disconnected; shutting down.");
+                    break;
+                }
+            }
+        });
+
+        Worker {_id: id, thread: Some(thread)}
     }
 }

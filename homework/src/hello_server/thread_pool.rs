@@ -106,7 +106,10 @@ impl Drop for ThreadPool {
     /// When dropped, all worker threads' `JoinHandle` must be `join`ed. If the thread panicked,
     /// then this function should panic too.
     fn drop(&mut self) {
-        todo!()
+        // todo!()
+        drop(self.job_sender.take());
+
+        println!("ThreadPool is dropped.");
     }
 }
 

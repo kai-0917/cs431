@@ -10,7 +10,7 @@ pub struct Cache<K, V> {
     // todo! This is an example cache type. Build your own cache type that satisfies the
     // specification for `get_or_insert_with`.
     // inner: Mutex<HashMap<K, V>>,
-    inner: Arc<RwLock<HashMap<K, Arc<Mutex<V>>>>>,
+    inner: Arc<RwLock<HashMap<K, Arc<Mutex<Option<V>>>>>>,
 }
 
 impl<K: Eq + Hash + Clone, V: Clone> Cache<K, V> {
@@ -31,21 +31,39 @@ impl<K: Eq + Hash + Clone, V: Clone> Cache<K, V> {
     pub fn get_or_insert_with<F: FnOnce(K) -> V>(&self, key: K, f: F) -> V {
         // todo!()
         // try to read with a RwLock to check if the key exists
-        if let Some(value) = self.inner.read().unwrap().get(&key) {
-            return value.lock().unwrap().clone()
-        }
-
+        // if let Some(value) = self.inner.read().unwrap().get(&key) {
+        //     return value.lock().unwrap().unwrap().clone()
+        // }
+        
+        let mutex = Arc::new(Mutex::new(None));
         // If the key doesn't exist, insert a new value using lock
-        let mut inner = self.inner.write().unwrap();
+        {
+            let mut inner = self.inner.write().unwrap();
 
-        match inner.entry(key.clone()) {
-            Entry::Occupied(entry) => {
-                return entry.get().lock().unwrap().clone()
-            },
-            Entry::Vacant(entry) => {
-                inner.entry(key.clone()).or_insert_with_key(|key|Arc::new(Mutex::new(f(*key))))
-                    .lock().unwrap().clone()
+            match inner.entry(key.clone()) {
+                Entry::Occupied(entry) => {
+                    while let 1 = 1 {
+                        let a = entry.get().lock().unwrap();
+                        match a.as_ref() {
+                            None => {}
+                            Some(value) => {
+                                return value.clone()
+                            }
+                        }
+                    }
+                },
+                Entry::Vacant(entry) => {
+                    // inner.entry(key.clone()).or_insert_with_key(|key|Arc::new(Mutex::new(f(*key))))
+                    //     .lock().unwrap().clone()
+                    let a = mutex.clone();
+                    entry.insert(a);
+                }
             }
         }
+        let mut guard = mutex.lock().unwrap();
+        let mut inner = self.inner.write().unwrap();
+        let value = f(key.clone());
+        *guard = Some(value.clone());
+        value
     }
 }

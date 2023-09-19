@@ -61,7 +61,7 @@ impl<K: Eq + Hash + Clone, V: Clone> Cache<K, V> {
             }
         }
         let mut guard = mutex.lock().unwrap();
-        let mut inner = self.inner.write().unwrap();
+        // let mut inner = self.inner.write().unwrap();
         let value = f(key.clone());
         *guard = Some(value.clone());
         value

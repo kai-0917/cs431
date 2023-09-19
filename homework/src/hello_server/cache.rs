@@ -43,12 +43,9 @@ impl<K: Eq + Hash + Clone, V: Clone> Cache<K, V> {
             match inner.entry(key.clone()) {
                 Entry::Occupied(entry) => {
                     while let 1 = 1 {
-                        let a = entry.get().lock().unwrap();
-                        match a.as_ref() {
-                            None => {}
-                            Some(value) => {
-                                return value.clone()
-                            }
+                        let mut a = entry.get().lock().unwrap();
+                        if let Some(ref value) = *a {
+                            return value.clone()
                         }
                     }
                 },

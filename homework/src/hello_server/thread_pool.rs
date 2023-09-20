@@ -85,25 +85,25 @@ impl ThreadPool {
         let mut workers = Vec::with_capacity(size);
 
         let (sender, receiver) = unbounded();
-        let pool_inner = Arc::new(ThreadPoolInner::default());
+        let new_pool_inner = Arc::new(ThreadPoolInner::default());
 
         for id in 0..size {
-            let pool_inner = pool_inner.clone();
+            let pool_inner_cloned = new_pool_inner.clone();
             let receiver_cloned: Receiver<Job> = receiver.clone();
 
 
             let thread = thread::spawn(move ||{
                 for job in receiver_cloned.iter() {
-                    pool_inner.start_job();
+                    pool_inner_cloned.start_job();
                     (job.0)();
-                    pool_inner.finish_job();
+                    pool_inner_cloned.finish_job();
                 }
             });
 
             workers.push(Worker { _id: id, thread: Some(thread) });
         }
 
-        ThreadPool { _workers: workers, job_sender: Some(sender), pool_inner: pool_inner}
+        ThreadPool { _workers: workers, job_sender: Some(sender), pool_inner: new_pool_inner}
     }
 
     /// Execute a new job in the thread pool.

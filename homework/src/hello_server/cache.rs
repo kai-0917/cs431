@@ -35,19 +35,18 @@ impl<K: Eq + Hash + Clone, V: Clone> Cache<K, V> {
             let inner = self.inner.read().unwrap();
             if let Some(value) = inner.get(&key) {
                 if let Some(v) = value {
-                    return v.clone()
-                }
-                else {
+                    return v.clone();
+                } else {
                     // If the value is None, spin
                     continue;
                 }
             }
-            // If the key doesn't exists 
+            // If the key doesn't exists
             else {
                 break;
             }
         }
-        
+
         let mut i = 0;
         // If the key doesn't exist, insert a new value using lock
         {
@@ -57,9 +56,9 @@ impl<K: Eq + Hash + Clone, V: Clone> Cache<K, V> {
                 Entry::Occupied(entry) => {
                     let mut a = entry.get();
                     if let Some(value) = a {
-                        return value.clone()
+                        return value.clone();
                     }
-                },
+                }
                 Entry::Vacant(entry) => {
                     entry.insert(None);
                     i = 1;
@@ -71,9 +70,8 @@ impl<K: Eq + Hash + Clone, V: Clone> Cache<K, V> {
             loop {
                 let inner = self.inner.read().unwrap();
                 if let Some(value) = inner.get(&key).unwrap() {
-                    return value.clone()
-                }
-                else {
+                    return value.clone();
+                } else {
                     // If the value is None, spin
                     continue;
                 }

@@ -2,7 +2,7 @@
 
 // NOTE: Crossbeam channels are MPMC, which means that you don't need to wrap the receiver in
 // Arc<Mutex<..>>. Just clone the receiver and give it to each worker thread.
-use crossbeam_channel::{unbounded, Sender, Receiver};
+use crossbeam_channel::{unbounded, Receiver, Sender};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 
@@ -91,8 +91,7 @@ impl ThreadPool {
             let pool_inner_cloned = new_pool_inner.clone();
             let receiver_cloned: Receiver<Job> = receiver.clone();
 
-
-            let thread = thread::spawn(move ||{
+            let thread = thread::spawn(move || {
                 for job in receiver_cloned.iter() {
                     pool_inner_cloned.start_job();
                     (job.0)();
@@ -100,10 +99,17 @@ impl ThreadPool {
                 }
             });
 
-            workers.push(Worker { _id: id, thread: Some(thread) });
+            workers.push(Worker {
+                _id: id,
+                thread: Some(thread),
+            });
         }
 
-        ThreadPool { _workers: workers, job_sender: Some(sender), pool_inner: new_pool_inner}
+        ThreadPool {
+            _workers: workers,
+            job_sender: Some(sender),
+            pool_inner: new_pool_inner,
+        }
     }
 
     /// Execute a new job in the thread pool.

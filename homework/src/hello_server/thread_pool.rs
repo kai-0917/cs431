@@ -2,7 +2,7 @@
 
 // NOTE: Crossbeam channels are MPMC, which means that you don't need to wrap the receiver in
 // Arc<Mutex<..>>. Just clone the receiver and give it to each worker thread.
-use crossbeam_channel::{unbounded, Sender};
+use crossbeam_channel::{unbounded, Sender, Receiver};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 
@@ -88,11 +88,19 @@ impl ThreadPool {
         let pool_inner = Arc::new(ThreadPoolInner::default());
 
         for id in 0..size {
-            // let pool_inner = pool_inner.clone();
-            let receiver_cloned = receiver.clone();
+            let pool_inner = pool_inner.clone();
+            let receiver_cloned: Receiver<Job> = receiver.clone();
 
 
-            workers.push(Worker::new(id, receiver_cloned, pool_inner.clone()));
+            let thread = thread::spawn(move ||{
+                for job in receiver_cloned.iter() {
+                    pool_inner.start_job();
+                    (job.0)();
+                    pool_inner.finish_job();
+                }
+            });
+
+            workers.push(Worker { _id: id, thread: Some(thread) });
         }
 
         ThreadPool { _workers: workers, job_sender: Some(sender), pool_inner: pool_inner}
@@ -126,30 +134,5 @@ impl Drop for ThreadPool {
         drop(self.job_sender.take());
 
         println!("ThreadPool is dropped.");
-    }
-}
-
-impl Worker {
-    fn new(id: usize, receiver: crossbeam_channel::Receiver<Job>, pool_inner: Arc<ThreadPoolInner>) -> Worker {
-        let thread = thread::spawn(move || loop {
-            pool_inner.start_job();
-            let message = receiver.recv();
-
-            match message {
-                Ok(job) => {
-                    print!("Worker {id} got a job; executing.");
-                    job.0();
-                },
-                Err(_) => {
-                    print!("Worker {id} disconnected; shutting down.");
-                    pool_inner.finish_job();
-                    break;
-                }
-            }
-
-            pool_inner.finish_job();
-        });
-
-        Worker {_id: id, thread: Some(thread)}
     }
 }

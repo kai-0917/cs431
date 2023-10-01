@@ -525,7 +525,11 @@ impl<T> LinkedList<T> {
     /// ```
     #[inline]
     pub fn back(&self) -> Option<&T> {
-        todo!()
+        // todo!()
+        unsafe{
+            self.tail.as_ref()
+        }
+        .map(|node| &node.element)
     }
 
     /// Provides a mutable reference to the back element, or `None` if the list

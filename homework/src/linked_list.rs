@@ -575,7 +575,8 @@ impl<T> LinkedList<T> {
     /// assert_eq!(dl.front().unwrap(), &1);
     /// ```
     pub fn push_front(&mut self, elt: T) {
-        todo!()
+        // todo!()
+        self.push_front_node(Node::new(elt));
     }
 
     /// Removes the first element and returns it, or `None` if the list is

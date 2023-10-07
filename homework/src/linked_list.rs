@@ -155,9 +155,7 @@ impl<T> LinkedList<T> {
         if self.tail.is_null() {
             self.head = node;
         } else {
-            unsafe {
-                (*self.tail).next = node
-            };
+            unsafe { (*self.tail).next = node };
         }
 
         self.tail = node;
@@ -172,17 +170,13 @@ impl<T> LinkedList<T> {
             return None;
         }
 
-        let node = unsafe {
-            Box::from_raw(self.tail)
-        };
+        let node = unsafe { Box::from_raw(self.tail) };
         self.tail = node.prev;
 
         if self.tail.is_null() {
             self.head = ptr::null_mut();
         } else {
-            unsafe {
-                (*self.tail).next = ptr::null_mut()
-            };
+            unsafe { (*self.tail).next = ptr::null_mut() };
         }
 
         self.len -= 1;
@@ -526,10 +520,7 @@ impl<T> LinkedList<T> {
     #[inline]
     pub fn back(&self) -> Option<&T> {
         // todo!()
-        unsafe{
-            self.tail.as_ref()
-        }
-        .map(|node| &node.element)
+        unsafe { self.tail.as_ref() }.map(|node| &node.element)
     }
 
     /// Provides a mutable reference to the back element, or `None` if the list
@@ -747,12 +738,16 @@ impl<T> IterMut<'_, T> {
         } else if let Some(current_node) = unsafe { self.head.as_mut() } {
             if let Some(next_node) = unsafe { current_node.next.as_mut() } {
                 next_node.prev = raw_node;
-                unsafe { (*raw_node).next = next_node; }
+                unsafe {
+                    (*raw_node).next = next_node;
+                }
             } else {
                 self.tail = raw_node;
             }
             current_node.next = raw_node;
-            unsafe { (*raw_node).prev = current_node; }
+            unsafe {
+                (*raw_node).prev = current_node;
+            }
         }
         self.len += 1;
     }
@@ -777,12 +772,14 @@ impl<T> IterMut<'_, T> {
         // todo!()
         if self.len == 0 {
             None
+            // } else if let Some(current_node) = unsafe { self.head.as_mut() } {
+            //     if let Some(next_node) = unsafe { current_node.next.as_mut() } {
+            //         Some(&mut next_node.element)
+            //     } else {
+            //         None
+            //     }
         } else if let Some(current_node) = unsafe { self.head.as_mut() } {
-            if let Some(next_ndoe) = unsafe { current_node.next.as_mut() } {
-                Some(&mut next_ndoe.element)
-            } else {
-                None
-            }
+            Some(&mut current_node.element)
         } else {
             None
         }

@@ -774,7 +774,18 @@ impl<T> IterMut<'_, T> {
     /// ```
     #[inline]
     pub fn peek_next(&mut self) -> Option<&mut T> {
-        todo!()
+        // todo!()
+        if self.len == 0 {
+            None
+        } else if let Some(current_node) = unsafe { self.head.as_mut() } {
+            if let Some(next_ndoe) = unsafe { current_node.next.as_mut() } {
+                Some(&mut next_ndoe.element)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
     }
 }
 

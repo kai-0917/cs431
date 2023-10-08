@@ -732,24 +732,31 @@ impl<T> IterMut<'_, T> {
         // todo!()
         let node = Box::new(Node::new(element));
         let raw_node = Box::into_raw(node);
-        if self.len == 0 {
-            self.head = raw_node;
-            self.tail = raw_node;
-        } else if let Some(current_node) = unsafe { self.head.as_mut() } {
-            if let Some(next_node) = unsafe { current_node.next.as_mut() } {
-                next_node.prev = raw_node;
+        if self.list.len == 0 {
+            self.list.tail = raw_node;
+            self.list.head = raw_node;
+        }
+        if let Some(next_node) = unsafe { self.head.as_mut() } {
+            if let Some(prev_node) = unsafe { next_node.prev.as_mut() } {
+                prev_node.next = raw_node;
                 unsafe {
-                    (*raw_node).next = next_node;
+                    (*raw_node).prev = prev_node;
                 }
             } else {
-                self.tail = raw_node;
+                self.list.head = raw_node;
             }
-            current_node.next = raw_node;
+            next_node.prev = raw_node;
             unsafe {
-                (*raw_node).prev = current_node;
+                (*raw_node).next = next_node;
+            }
+        } else if let Some(prev_node) = unsafe { self.tail.as_mut() } {
+            self.list.tail = raw_node;
+            prev_node.next = raw_node;
+            unsafe {
+                (*raw_node).prev = prev_node;
             }
         }
-        self.len += 1;
+        self.list.len += 1;
     }
 
     /// Provides a reference to the next element, without changing the iterator.
@@ -772,12 +779,6 @@ impl<T> IterMut<'_, T> {
         // todo!()
         if self.len == 0 {
             None
-            // } else if let Some(current_node) = unsafe { self.head.as_mut() } {
-            //     if let Some(next_node) = unsafe { current_node.next.as_mut() } {
-            //         Some(&mut next_node.element)
-            //     } else {
-            //         None
-            //     }
         } else if let Some(current_node) = unsafe { self.head.as_mut() } {
             Some(&mut current_node.element)
         } else {

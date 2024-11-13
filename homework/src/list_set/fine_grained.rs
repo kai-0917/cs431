@@ -39,14 +39,19 @@ impl<T: Ord> Cursor<'_, T> {
         // todo!()
         loop {
             // if the node pointer within the cursor's MG is null
-            if (*self.0).is_null() { return false; }
+            if (*self.0).is_null() {
+                return false;
+            }
             // there exists a next node, retrieve the data
             let next_data = unsafe { &(**self.0).data };
             // if exists, the cursor points to the matching node
-            if next_data == key { return true; }
+            if next_data == key {
+                return true;
+            }
             // if not exists, the cursor points to the smallest node whose data is larger than key
-            if next_data > key { return false; }
-            // if 
+            if next_data > key {
+                return false;
+            }
             if next_data < key {
                 self.0 = unsafe { (**self.0).next.lock().unwrap() };
             }
@@ -67,7 +72,7 @@ impl<T: Ord> FineGrainedListSet<T> {
     fn find(&self, key: &T) -> (bool, Cursor<'_, T>) {
         // todo!()
         let mut cursor = Cursor(self.head.lock().unwrap());
-        (cursor.find(&key), cursor)
+        (cursor.find(key), cursor)
     }
 }
 
@@ -79,23 +84,27 @@ impl<T: Ord> ConcurrentSet<T> for FineGrainedListSet<T> {
     fn insert(&self, key: T) -> bool {
         // todo!()
         let mut cursor = Cursor(self.head.lock().unwrap());
-        if cursor.find(&key) { return false; }
-        else {
+        if cursor.find(&key) {
+            false
+        } else {
             let new_node = Node::new(key, *cursor.0);
             *cursor.0 = new_node;
-            return true;
+            true
         }
     }
 
     fn remove(&self, key: &T) -> bool {
         // todo!()
         let mut cursor = Cursor(self.head.lock().unwrap());
-        if !cursor.find(&key) { return false; }
-        else {
+        if !cursor.find(key) {
+            false
+        } else {
             let node_found_ptr = *cursor.0;
             *cursor.0 = unsafe { *(**cursor.0).next.lock().unwrap() };
-            unsafe { drop(Box::from_raw(node_found_ptr)); }
-            return true;
+            unsafe {
+                drop(Box::from_raw(node_found_ptr));
+            }
+            true
         }
     }
 }
@@ -115,11 +124,12 @@ impl<'l, T> Iterator for Iter<'l, T> {
 
     fn next(&mut self) -> Option<Self::Item> {
         // todo!()
-        if (*self.0).is_null() { return None }
-        else {
+        if (*self.0).is_null() {
+            None
+        } else {
             let result = unsafe { Some(&(**self.0).data) };
             self.0 = unsafe { (**self.0).next.lock().unwrap() };
-            return result;
+            result
         }
     }
 }
@@ -131,7 +141,9 @@ impl<T> Drop for FineGrainedListSet<T> {
         while !(*mg_head).is_null() {
             let node_to_free = *mg_head;
             *mg_head = unsafe { *(**mg_head).next.lock().unwrap() };
-            unsafe { drop(Box::from_raw(node_to_free)); }
+            unsafe {
+                drop(Box::from_raw(node_to_free));
+            }
         }
     }
 }

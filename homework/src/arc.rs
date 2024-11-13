@@ -2,11 +2,11 @@
 //!
 //! See the [`Arc<T>`][Arc] documentation for more details.
 
-use std::fmt;
 use std::marker::PhantomData;
 use std::mem;
 use std::ops::Deref;
 use std::ptr::NonNull;
+use std::{fmt, ptr};
 
 #[cfg(feature = "check-loom")]
 use loom::sync::atomic::{fence, AtomicUsize, Ordering};
@@ -205,14 +205,30 @@ impl<T> Arc<T> {
     /// ```
     #[inline]
     pub fn get_mut(this: &mut Self) -> Option<&mut T> {
-        todo!()
+        // todo!()
+        // let arc_inner_ptr = (*this).ptr.as_ptr();
+        // if arc_inner_ptr.is_null() {
+        //     None
+        // }
+        // else {
+        //     unsafe {
+        //         let _ = (*arc_inner_ptr).count.fetch_add(1, Ordering::SeqCst);
+        //         Some(&mut (*arc_inner_ptr).data)
+        //     }
+        // }
+        if this.is_unique() {
+            Some(unsafe { Arc::get_mut_unchecked(this) })
+        } else {
+            None
+        }
     }
 
     // Used in `get_mut` and `make_mut` to check if the given `Arc` is the unique reference to the
     // underlying data.
     #[inline]
     fn is_unique(&mut self) -> bool {
-        todo!()
+        // todo!()
+        Arc::count(self) == 1
     }
 
     /// Returns a mutable reference into the given `Arc` without any check.
@@ -264,7 +280,8 @@ impl<T> Arc<T> {
     /// ```
     #[inline]
     pub fn count(this: &Self) -> usize {
-        todo!()
+        // todo!()
+        this.inner().count.load(Ordering::SeqCst)
     }
 
     #[inline]
@@ -315,7 +332,27 @@ impl<T> Arc<T> {
     /// ```
     #[inline]
     pub fn try_unwrap(this: Self) -> Result<T, Self> {
-        todo!()
+        // todo!()
+        // let arc_inner_ptr = this.ptr;
+        // unsafe {
+        //     let box1 = Box::from_raw(arc_inner_ptr.as_ptr());
+        //     if box1.count.load(Ordering::SeqCst) == 1 {
+        //         Ok(box1.data)
+        //     } else {
+        //         Err(Self::from_inner(Box::leak(box1).into()))
+        //     }
+        // }
+        if Arc::count(&this) == 1 {
+            // let arc_inner = Arc::get_mut_unchecked(mut this);
+            let inner = unsafe { Box::from_raw(this.ptr.as_ptr()) };
+            // let data = ptr::read(&(*(inner_ptr)).data);
+            mem::forget(this);
+            // ptr::drop_in_place(this.ptr.as_ptr());
+            // mem::forget(ptr::read(arc_inner_ptr));
+            Ok(inner.data)
+        } else {
+            Err(this)
+        }
     }
 }
 
@@ -347,7 +384,24 @@ impl<T: Clone> Arc<T> {
     /// ```
     #[inline]
     pub fn make_mut(this: &mut Self) -> &mut T {
-        todo!()
+        // todo!()
+        // let arc_inner_ptr = this.ptr.as_ptr();
+        // if this.is_unique() {
+        //     unsafe { &mut (*arc_inner_ptr).data }
+        // }
+        // else {
+        //     unsafe {
+        //         let new_arc = Arc::new((*arc_inner_ptr).data.clone());
+        //         Arc::get_mut(new_arc)
+        //     }
+        // }
+        unsafe {
+            if !this.is_unique() {
+                let new_data = (*this.ptr.as_ptr()).data.clone();
+                *this = Arc::new(new_data);
+            }
+            Arc::get_mut_unchecked(this)
+        }
     }
 }
 
@@ -372,7 +426,12 @@ impl<T> Clone for Arc<T> {
     /// ```
     #[inline]
     fn clone(&self) -> Arc<T> {
-        todo!()
+        // todo!()
+        let count = self.inner().count.fetch_add(1, Ordering::SeqCst);
+        if count == MAX_REFCOUNT {
+            panic!("Arc count overflows");
+        }
+        Arc::from_inner(self.ptr)
     }
 }
 
@@ -411,7 +470,13 @@ impl<T> Drop for Arc<T> {
     /// drop(foo2);   // Prints "dropped!"
     /// ```
     fn drop(&mut self) {
-        todo!()
+        // todo!()
+        if self.inner().count.fetch_sub(1, Ordering::SeqCst) == 1 {
+            unsafe {
+                // ptr::drop_in_place(to_drop)
+                let _ = Box::from_raw(self.ptr.as_ptr());
+            }
+        }
     }
 }
 

@@ -5,8 +5,10 @@ use std::fmt;
 
 #[cfg(not(feature = "check-loom"))]
 use core::sync::atomic::{fence, AtomicBool, AtomicPtr, AtomicUsize, Ordering};
+use crossbeam_epoch::Pointer;
 #[cfg(feature = "check-loom")]
 use loom::sync::atomic::{fence, AtomicBool, AtomicPtr, AtomicUsize, Ordering};
+use std::ptr::null;
 
 use super::HAZARDS;
 
@@ -28,7 +30,9 @@ impl Shield {
 
     /// Store `pointer` to the hazard slot.
     pub fn set<T>(&self, pointer: *mut T) {
-        todo!()
+        // todo!()
+        let mut hzslot = self.slot.as_ptr();
+        unsafe { (*hzslot).hazard.store(pointer as usize, Ordering::SeqCst) };
     }
 
     /// Clear the hazard slot.
@@ -41,7 +45,13 @@ impl Shield {
     /// For a pointer `p`, if "`src` still pointing to `pointer`" implies that `p` is not retired,
     /// then `Ok(())` means that shields set to `p` are validated.
     pub fn validate<T>(pointer: *mut T, src: &AtomicPtr<T>) -> Result<(), *mut T> {
-        todo!()
+        // todo!()
+        let ori_ptr = src.load(Ordering::SeqCst);
+        if ori_ptr != pointer {
+            Err(ori_ptr)
+        } else {
+            Ok(())
+        }
     }
 
     /// Try protecting `pointer` obtained from `src`. If not, returns the current value.
@@ -50,7 +60,7 @@ impl Shield {
     /// means that this shield is validated.
     pub fn try_protect<T>(&self, pointer: *mut T, src: &AtomicPtr<T>) -> Result<(), *mut T> {
         self.set(pointer);
-        Self::validate(pointer, src).map_err(|new| {
+        Self::validate(pointer, src).map_err(|new: *mut T| {
             self.clear();
             new
         })
@@ -79,7 +89,11 @@ impl Default for Shield {
 impl Drop for Shield {
     /// Clear and release the ownership of the hazard slot.
     fn drop(&mut self) {
-        todo!()
+        // todo!()
+        unsafe {
+            let slot = self.slot.as_ptr();
+            (*slot).active.store(false, Ordering::SeqCst);
+        }
     }
 }
 
@@ -113,7 +127,12 @@ struct HazardSlot {
 
 impl HazardSlot {
     fn new() -> Self {
-        todo!()
+        // todo!()
+        Self {
+            active: AtomicBool::new(false),
+            hazard: AtomicUsize::new(0),
+            next: ptr::null(),
+        }
     }
 }
 
@@ -137,24 +156,107 @@ impl HazardBag {
     /// Acquires a slot in the hazard set, either by recycling an inactive slot or allocating a new
     /// slot.
     fn acquire_slot(&self) -> &HazardSlot {
-        todo!()
+        // todo!()
+        if let Some(hzslot) = self.try_acquire_inactive() {
+            hzslot
+        } else {
+            let mut new_slot = Box::into_raw(Box::new(HazardSlot::new()));
+            unsafe {
+                (*new_slot).active.store(true, Ordering::SeqCst);
+            }
+            loop {
+                let ori_head = self.head.load(Ordering::SeqCst);
+                unsafe {
+                    (*new_slot).next = ori_head;
+                }
+                if self
+                    .head
+                    .compare_exchange(ori_head, new_slot, Ordering::SeqCst, Ordering::SeqCst)
+                    .is_err()
+                {
+                    continue;
+                }
+                return unsafe { new_slot.as_ref().expect("Not null") };
+            }
+        }
     }
 
     /// Find an inactive slot and activate it.
     fn try_acquire_inactive(&self) -> Option<&HazardSlot> {
-        todo!()
+        // todo!()
+        let mut slot = self.head.load(Ordering::SeqCst);
+        loop {
+            if slot.is_null() {
+                return None;
+            }
+            unsafe {
+                if (*slot)
+                    .active
+                    .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+                    .is_err()
+                {
+                    slot = (*slot).next.cast_mut();
+                    continue;
+                }
+                return slot.as_ref();
+            }
+        }
     }
 
     /// Returns all the hazards in the set.
     pub fn all_hazards(&self) -> HashSet<usize> {
-        todo!()
+        // todo!()
+        let mut hashset = HashSet::new();
+        let mut slot = self.head.load(Ordering::SeqCst);
+        loop {
+            if slot.is_null() {
+                return hashset;
+            }
+            unsafe {
+                let mut curr_hazard = (*slot).hazard.load(Ordering::SeqCst);
+                if (*slot).active.load(Ordering::SeqCst) {
+                    // let mut curr_hazard = (*slot).hazard.load(Ordering::SeqCst);
+                    if curr_hazard != 0 {
+                        hashset.insert(curr_hazard);
+                    }
+                }
+                slot = (*slot).next.cast_mut();
+            }
+        }
+    }
+
+    /// make all pointer as null.
+    pub fn retire_aux(&self, pointer: usize) {
+        let mut slot = self.head.load(Ordering::SeqCst);
+        loop {
+            if slot.is_null() {
+                return;
+            }
+            unsafe {
+                let mut curr_hazard = (*slot).hazard.load(Ordering::SeqCst);
+                let _ =
+                    (*slot)
+                        .hazard
+                        .compare_exchange(pointer, 0, Ordering::SeqCst, Ordering::SeqCst);
+                slot = (*slot).next.cast_mut();
+            }
+        }
     }
 }
 
 impl Drop for HazardBag {
     /// Frees all slots.
     fn drop(&mut self) {
-        todo!()
+        // todo!()
+        let mut curr_slot = self.head.load(Ordering::SeqCst);
+        loop {
+            if curr_slot.is_null() {
+                break;
+            }
+            let slot_to_remove = curr_slot;
+            curr_slot = unsafe { (*curr_slot).next.cast_mut() };
+            unsafe { drop(Box::from_raw(slot_to_remove)) };
+        }
     }
 }
 
